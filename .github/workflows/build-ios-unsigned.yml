@@ -30,9 +30,6 @@ jobs:
       - name: Flutter version
         run: flutter --version
 
-      - name: Disable Swift Package Manager
-        run: flutter config --no-enable-swift-package-manager || true
-
       - name: Restore pub cache
         uses: actions/cache@v4
         with:
@@ -50,12 +47,20 @@ jobs:
       - name: Run build_runner
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Build Flutter iOS bundle (no xcodebuild)
+        run: |
+          flutter build ios --flavor canary \
+            --dart-define-from-file=tool/dart_defines/canary.json \
+            --dart-define=PUSH_PROVIDER=apns \
+            --no-codesign \
+            --skip-ios-runner-build 2>&1 || true
+
       - name: Install CocoaPods
         run: |
           cd ios
           pod install --repo-update
 
-      - name: Strip SPM from Xcode project
+      - name: Strip SPM and build with xcodebuild
         run: |
           python3 << 'PYEOF'
           import re, os
@@ -64,53 +69,43 @@ jobs:
           with open(pbxproj, 'r') as f:
               content = f.read()
 
-          # Remove XCLocalSwiftPackageReference section
           content = re.sub(
               r'/\* Begin XCLocalSwiftPackageReference section \*/.*?/\* End XCLocalSwiftPackageReference section \*/',
-              '/* XCLocalSwiftPackageReference section removed */',
-              content, flags=re.DOTALL
+              '/* removed */', content, flags=re.DOTALL
           )
-
-          # Remove XCSwiftPackageProductDependency section
           content = re.sub(
               r'/\* Begin XCSwiftPackageProductDependency section \*/.*?/\* End XCSwiftPackageProductDependency section \*/',
-              '/* XCSwiftPackageProductDependency section removed */',
-              content, flags=re.DOTALL
+              '/* removed */', content, flags=re.DOTALL
           )
-
-          # Remove packageReferences from project
-          content = re.sub(
-              r'\t\t\tpackageReferences = \([^)]*\);\n',
-              '', content, flags=re.DOTALL
-          )
-
-          # Remove build file refs for FlutterGeneratedPluginSwiftPackage
-          content = re.sub(r'\t+78A318202AECB46A00862997 /\* FlutterGeneratedPluginSwiftPackage in Frameworks \*/,\n', '', content)
+          content = re.sub(r'\t\t\tpackageReferences = \([^)]*\);\n', '', content, flags=re.DOTALL)
 
           with open(pbxproj, 'w') as f:
               f.write(content)
 
-          # Remove Package.resolved files
           for root, dirs, files in os.walk('ios'):
               for f in files:
                   if f == 'Package.resolved':
                       os.remove(os.path.join(root, f))
-                      print(f'Removed {os.path.join(root, f)}')
-
-          print('SPM references stripped')
+          print('SPM stripped')
           PYEOF
 
-      - name: Build iOS (unsigned)
-        run: |
-          flutter build ios --flavor canary \
-            --dart-define-from-file=tool/dart_defines/canary.json \
-            --dart-define=PUSH_PROVIDER=apns \
-            --no-codesign
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace \
+            -scheme canary \
+            -configuration Release-canary \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath ../build/ios \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="-" \
+            ENABLE_BITCODE=NO \
+            RUN_FLUTTER_BUILD_SCRIPT=NO \
+            build
 
       - name: Create IPA
         run: |
           mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
+          cp -r build/ios/Build/Products/Release-canary-iphoneos/Runner.app Payload/
           zip -r -X Fluxer.ipa Payload/
           rm -rf Payload
 
