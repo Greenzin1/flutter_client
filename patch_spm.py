@@ -28,17 +28,17 @@ for root, dirs, files in os.walk('ios'):
             os.remove(os.path.join(root, fname))
 print('Package.resolved files removed')
 
-# 3. Comment out import receive_sharing_intent and usage in SceneDelegate
+# 3. Rewrite SceneDelegate (remove receive_sharing_intent dependency)
 scene = 'ios/Runner/SceneDelegate.swift'
-if os.path.exists(scene):
-    with open(scene, 'r') as f:
-        content = f.read()
-    content = content.replace('import receive_sharing_intent', '// import receive_sharing_intent')
-    content = content.replace('ReceiveSharingIntentPlugin.instance.scene(', '// ReceiveSharingIntentPlugin.instance.scene(')
-    content = content.replace('ReceiveSharingIntentPlugin.instance.scene(scene, openURLContexts:', '// ReceiveSharingIntentPlugin.instance.scene(scene, openURLContexts:')
-    with open(scene, 'w') as f:
-        f.write(content)
-    print(f'Patched {scene}')
+minimal_scene = """import Flutter
+import UIKit
+
+class SceneDelegate: FlutterSceneDelegate {
+}
+"""
+with open(scene, 'w') as f:
+    f.write(minimal_scene)
+print(f'Rewrote {scene} with minimal stub')
 
 # 4. Stub ShareViewController (remove SPM dependency)
 share_ext = 'ios/ShareExtension/ShareViewController.swift'
