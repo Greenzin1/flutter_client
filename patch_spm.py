@@ -58,3 +58,11 @@ if os.path.exists(share_ext):
     print(f'Replaced {share_ext}')
 
 print('Done: SPM stripped, Swift patched')
+
+# 5. Fix CanaryAppIcon -> AppIcon
+with open(pbxproj, 'r') as f:
+    content = f.read()
+content = content.replace('ASSETCATALOG_COMPILER_APPICON_NAME = CanaryAppIcon', 'ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon')
+with open(pbxproj, 'w') as f:
+    f.write(content)
+print('Fixed CanaryAppIcon -> AppIcon')
