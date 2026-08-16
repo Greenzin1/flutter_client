@@ -30,7 +30,7 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Set up Flutter
-        uses: axi92/flutter-action@v2
+        uses: axi92/flutter-action@72633a794ba0b23276fa4fc465a6cacb758a90c5
         with:
           channel: stable
 
