@@ -27,6 +27,11 @@ jobs:
       - name: Flutter version
         run: flutter --version
 
+      - name: Disable SPM via flutter config
+        run: |
+          flutter config --no-enable-swift-package-manager 2>&1 || true
+          flutter config -v 2>&1 | grep -i "swift\|spm\|package" || true
+
       - name: Restore pub cache
         uses: actions/cache@v4
         with:
@@ -41,6 +46,15 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Debug ephemeral packages
+        run: |
+          echo "=== Flutter ephemeral ==="
+          find ios/Flutter/ephemeral -type f -o -type l 2>/dev/null | head -20
+          echo "=== Packages dir ==="
+          ls -la ios/Flutter/ephemeral/Packages/.packages/ 2>/dev/null || echo "No .packages dir"
+          echo "=== pbxproj SPM refs ==="
+          grep -c "XCLocalSwiftPackageReference\|XCSwiftPackageProductDependency" ios/Runner.xcodeproj/project.pbxproj
+
       - name: Run build_runner
         run: dart run build_runner build --delete-conflicting-outputs
 
@@ -49,54 +63,17 @@ jobs:
           cd ios
           pod install --repo-update
 
-      - name: Strip SPM from Xcode project
+      - name: Build iOS (unsigned)
         run: |
-          python3 << 'PYEOF'
-          import re, os
-
-          pbxproj = 'ios/Runner.xcodeproj/project.pbxproj'
-          with open(pbxproj, 'r') as f:
-              content = f.read()
-
-          content = re.sub(
-              r'/\* Begin XCLocalSwiftPackageReference section \*/.*?/\* End XCLocalSwiftPackageReference section \*/',
-              '/* removed */', content, flags=re.DOTALL
-          )
-          content = re.sub(
-              r'/\* Begin XCSwiftPackageProductDependency section \*/.*?/\* End XCSwiftPackageProductDependency section \*/',
-              '/* removed */', content, flags=re.DOTALL
-          )
-          content = re.sub(r'\t\t\tpackageReferences = \([^)]*\);\n', '', content, flags=re.DOTALL)
-
-          with open(pbxproj, 'w') as f:
-              f.write(content)
-
-          for root, dirs, files in os.walk('ios'):
-              for f in files:
-                  if f == 'Package.resolved':
-                      os.remove(os.path.join(root, f))
-          print('SPM stripped')
-          PYEOF
-
-      - name: Build with xcodebuild
-        run: |
-          cd ios
-          xcodebuild -workspace Runner.xcworkspace \
-            -scheme canary \
-            -configuration Release-canary \
-            -sdk iphoneos \
-            -derivedDataPath ../build/ios \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="-" \
-            ENABLE_BITCODE=NO \
-            IPHONEOS_DEPLOYMENT_TARGET=15.6 \
-            build
+          flutter build ios --flavor canary \
+            --dart-define-from-file=tool/dart_defines/canary.json \
+            --dart-define=PUSH_PROVIDER=apns \
+            --no-codesign
 
       - name: Create IPA
         run: |
           mkdir -p Payload
-          cp -r build/ios/Build/Products/Release-canary-iphoneos/Runner.app Payload/
+          cp -r build/ios/iphoneos/Runner.app Payload/
           zip -r -X Fluxer.ipa Payload/
           rm -rf Payload
 
