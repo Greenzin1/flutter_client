@@ -19,9 +19,6 @@ jobs:
       - name: Sync submodules
         run: git submodule update --init --recursive
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -47,20 +44,12 @@ jobs:
       - name: Run build_runner
         run: dart run build_runner build --delete-conflicting-outputs
 
-      - name: Build Flutter iOS bundle (no xcodebuild)
-        run: |
-          flutter build ios --flavor canary \
-            --dart-define-from-file=tool/dart_defines/canary.json \
-            --dart-define=PUSH_PROVIDER=apns \
-            --no-codesign \
-            --skip-ios-runner-build 2>&1 || true
-
       - name: Install CocoaPods
         run: |
           cd ios
           pod install --repo-update
 
-      - name: Strip SPM and build with xcodebuild
+      - name: Strip SPM from Xcode project
         run: |
           python3 << 'PYEOF'
           import re, os
@@ -89,18 +78,19 @@ jobs:
           print('SPM stripped')
           PYEOF
 
+      - name: Build with xcodebuild
+        run: |
           cd ios
           xcodebuild -workspace Runner.xcworkspace \
             -scheme canary \
             -configuration Release-canary \
-            -destination 'generic/platform=iOS' \
+            -sdk iphoneos \
             -derivedDataPath ../build/ios \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="-" \
             ENABLE_BITCODE=NO \
-            RUN_FLUTTER_BUILD_SCRIPT=NO \
-            build
+            build 2>&1 | tail -30
 
       - name: Create IPA
         run: |
