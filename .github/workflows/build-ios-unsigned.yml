@@ -45,7 +45,14 @@ jobs:
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Patch Swift files
-        run: python3 patch_spm.py
+        run: |
+          python3 patch_spm.py
+          # Fix connectivity_plus isUltraConstrained error
+          CONN_FILE="$HOME/.pub-cache/hosted/pub.dev/connectivity_plus-7.3.1/ios/connectivity_plus/Sources/connectivity_plus/PathMonitorConnectivityProvider.swift"
+          if [ -f "$CONN_FILE" ]; then
+            sed -i '' 's/path\.isUltraConstrained/false/g' "$CONN_FILE"
+            echo "Patched connectivity_plus"
+          fi
 
       - name: Install CocoaPods
         run: |
