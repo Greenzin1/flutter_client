@@ -1,0 +1,62 @@
+name: Build Fluxer Android (Unsigned)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Restore Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Set up Flutter
+        uses: axi92/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Restore pub cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Strip Firebase dependencies if present
+        run: dart tool/strip_firebase_deps.dart
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run build_runner
+        run: dart run build_runner build
+
+      - name: Build debug APK (unsigned, no signing needed)
+        run: flutter build apk --debug --flavor canaryUnifiedpush --dart-define-from-file=tool/dart_defines/canary.json --dart-define=PUSH_PROVIDER=unifiedpush
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluxer-android-debug
+          path: build/app/outputs/flutter-apk/app-*-canaryunifiedpush-debug.apk
+          if-no-files-found: error
