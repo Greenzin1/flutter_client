@@ -66,3 +66,15 @@ content = content.replace('ASSETCATALOG_COMPILER_APPICON_NAME = CanaryAppIcon', 
 with open(pbxproj, 'w') as f:
     f.write(content)
 print('Fixed CanaryAppIcon -> AppIcon')
+
+# 6. Comment out import WebRTC in AppDelegate
+app_delegate = 'ios/Runner/AppDelegate.swift'
+if os.path.exists(app_delegate):
+    with open(app_delegate, 'r') as f:
+        content = f.read()
+    content = content.replace('import WebRTC', '// import WebRTC')
+    content = re.sub(r'^(\s*)let rtc = RTCAudioSession\.sharedInstance\(\)', r'\1// let rtc = RTCAudioSession.sharedInstance()', content, flags=re.MULTILINE)
+    content = re.sub(r'^(\s*)rtc\.', r'\1// rtc.', content, flags=re.MULTILINE)
+    with open(app_delegate, 'w') as f:
+        f.write(content)
+    print(f'Patched {app_delegate}')
