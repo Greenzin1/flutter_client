@@ -53,7 +53,7 @@ jobs:
           pod install --repo-update
 
       - name: Build Flutter (iOS)
-        run: flutter build ios --no-codesign --no-sim-only
+        run: flutter build ios --no-codesign
 
       - name: Create IPA
         run: |
