@@ -54,9 +54,12 @@ jobs:
       - name: Build debug APK (unsigned, no signing needed)
         run: flutter build apk --debug --flavor canaryUnifiedpush --dart-define-from-file=tool/dart_defines/canary.json --dart-define=PUSH_PROVIDER=unifiedpush
 
+      - name: List APK outputs
+        run: find build/app/outputs -name "*.apk" -type f
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: fluxer-android-debug
-          path: build/app/outputs/flutter-apk/app-*-canaryunifiedpush-debug.apk
+          path: build/app/outputs/**/*.apk
           if-no-files-found: error
