@@ -10,7 +10,6 @@ jobs:
     env:
       LANG: en_US.UTF-8
       LC_ALL: en_US.UTF-8
-      FLUTTER_XCODE_BUILD_SYSTEM: original
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,7 +31,7 @@ jobs:
         run: flutter --version
 
       - name: Disable Swift Package Manager
-        run: flutter config --no-enable-swift-package-manager
+        run: flutter config --no-enable-swift-package-manager || true
 
       - name: Restore pub cache
         uses: actions/cache@v4
@@ -55,6 +54,51 @@ jobs:
         run: |
           cd ios
           pod install --repo-update
+
+      - name: Strip SPM from Xcode project
+        run: |
+          python3 << 'PYEOF'
+          import re, os
+
+          pbxproj = 'ios/Runner.xcodeproj/project.pbxproj'
+          with open(pbxproj, 'r') as f:
+              content = f.read()
+
+          # Remove XCLocalSwiftPackageReference section
+          content = re.sub(
+              r'/\* Begin XCLocalSwiftPackageReference section \*/.*?/\* End XCLocalSwiftPackageReference section \*/',
+              '/* XCLocalSwiftPackageReference section removed */',
+              content, flags=re.DOTALL
+          )
+
+          # Remove XCSwiftPackageProductDependency section
+          content = re.sub(
+              r'/\* Begin XCSwiftPackageProductDependency section \*/.*?/\* End XCSwiftPackageProductDependency section \*/',
+              '/* XCSwiftPackageProductDependency section removed */',
+              content, flags=re.DOTALL
+          )
+
+          # Remove packageReferences from project
+          content = re.sub(
+              r'\t\t\tpackageReferences = \([^)]*\);\n',
+              '', content, flags=re.DOTALL
+          )
+
+          # Remove build file refs for FlutterGeneratedPluginSwiftPackage
+          content = re.sub(r'\t+78A318202AECB46A00862997 /\* FlutterGeneratedPluginSwiftPackage in Frameworks \*/,\n', '', content)
+
+          with open(pbxproj, 'w') as f:
+              f.write(content)
+
+          # Remove Package.resolved files
+          for root, dirs, files in os.walk('ios'):
+              for f in files:
+                  if f == 'Package.resolved':
+                      os.remove(os.path.join(root, f))
+                      print(f'Removed {os.path.join(root, f)}')
+
+          print('SPM references stripped')
+          PYEOF
 
       - name: Build iOS (unsigned)
         run: |
