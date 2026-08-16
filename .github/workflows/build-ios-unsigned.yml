@@ -39,7 +39,9 @@ jobs:
         run: dart tool/strip_firebase_deps.dart
 
       - name: Get dependencies
-        run: flutter pub get
+        run: |
+          mkdir -p build/ios/SourcePackages
+          flutter pub get
 
       - name: Run build_runner
         run: dart run build_runner build --delete-conflicting-outputs
