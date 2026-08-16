@@ -10,7 +10,6 @@ jobs:
     env:
       LANG: en_US.UTF-8
       LC_ALL: en_US.UTF-8
-      FLUTTER_SUPPRESS_ANALYTICS: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,9 +18,6 @@ jobs:
 
       - name: Sync submodules
         run: git submodule update --init --recursive
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -43,20 +39,23 @@ jobs:
         run: dart tool/strip_firebase_deps.dart
 
       - name: Get dependencies
-        run: |
-          mkdir -p build/ios/SourcePackages build/macos/SourcePackages
-          flutter pub get
+        run: flutter pub get
 
       - name: Run build_runner
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Install CocoaPods
+        run: |
+          cd ios
+          pod install --repo-update
+
       - name: Build iOS (unsigned)
         run: |
+          flutter config --no-enable-swift-package-manager 2>/dev/null || true
           flutter build ios --flavor canary \
             --dart-define-from-file=tool/dart_defines/canary.json \
             --dart-define=PUSH_PROVIDER=apns \
-            --no-codesign \
-            --no-enable-impeller
+            --no-codesign
 
       - name: Create IPA
         run: |

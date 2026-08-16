@@ -169,3 +169,4 @@ The Flutter client uses the [dart_sdk](https://github.com/fluxerapp/dart_sdk) to
 ## License
 
 Fluxer Mobile is licensed under the [GNU Affero General Public License v3](./LICENSE) (AGPLv3), together with an [App Store additional permission](./LICENSE-APPSTORE-EXCEPTION) under section 7 of the AGPLv3 that allows the app to be distributed through application stores (such as the Apple App Store and Google Play) without changing the project's public AGPLv3 licensing.
+skip ci
