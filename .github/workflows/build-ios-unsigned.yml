@@ -27,11 +27,6 @@ jobs:
       - name: Flutter version
         run: flutter --version
 
-      - name: Disable SPM via flutter config
-        run: |
-          flutter config --no-enable-swift-package-manager 2>&1 || true
-          flutter config -v 2>&1 | grep -i "swift\|spm\|package" || true
-
       - name: Restore pub cache
         uses: actions/cache@v4
         with:
@@ -46,15 +41,6 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Debug ephemeral packages
-        run: |
-          echo "=== Flutter ephemeral ==="
-          find ios/Flutter/ephemeral -type f -o -type l 2>/dev/null | head -20
-          echo "=== Packages dir ==="
-          ls -la ios/Flutter/ephemeral/Packages/.packages/ 2>/dev/null || echo "No .packages dir"
-          echo "=== pbxproj SPM refs ==="
-          grep -c "XCLocalSwiftPackageReference\|XCSwiftPackageProductDependency" ios/Runner.xcodeproj/project.pbxproj
-
       - name: Run build_runner
         run: dart run build_runner build --delete-conflicting-outputs
 
@@ -63,17 +49,102 @@ jobs:
           cd ios
           pod install --repo-update
 
-      - name: Build iOS (unsigned)
+      - name: Patch SPM and Swift imports
         run: |
-          flutter build ios --flavor canary \
-            --dart-define-from-file=tool/dart_defines/canary.json \
-            --dart-define=PUSH_PROVIDER=apns \
-            --no-codesign
+          python3 << 'PYEOF'
+          import re, os
+
+          # 1. Strip ALL SPM from pbxproj
+          pbxproj = 'ios/Runner.xcodeproj/project.pbxproj'
+          with open(pbxproj, 'r') as f:
+              content = f.read()
+
+          # Remove XCLocalSwiftPackageReference section
+          content = re.sub(
+              r'/\* Begin XCLocalSwiftPackageReference section \*/.*?/\* End XCLocalSwiftPackageReference section \*/',
+              '/* removed */', content, flags=re.DOTALL
+          )
+          # Remove XCSwiftPackageProductDependency section
+          content = re.sub(
+              r'/\* Begin XCSwiftPackageProductDependency section \*/.*?/\* End XCSwiftPackageProductDependency section \*/',
+              '/* removed */', content, flags=re.DOTALL
+          )
+          # Remove packageReferences
+          content = re.sub(r'\t\t\tpackageReferences = \([^)]*\);\n', '', content, flags=re.DOTALL)
+          # Remove all productRef lines that reference SPM packages
+          content = re.sub(r'\t+\w+ /\* \w+ \*/ = \{[^}]*isa = XCSwiftPackageProductDependency[^}]*\};', '', content, flags=re.DOTALL)
+          # Remove FlutterGeneratedPluginSwiftPackage build file ref
+          content = re.sub(r'\t+\w+ /\* FlutterGeneratedPluginSwiftPackage in Frameworks \*/,\n', '', content)
+          # Remove any remaining SPM package refs in buildPhases
+          content = re.sub(r'\t+\w+ /\* ReceiveSharingIntent[^*]*\*/,\n', '', content)
+          content = re.sub(r'\t+\w+ /\* receive_sharing_intent[^*]*\*/,\n', '', content)
+          # Remove packageProductDependencies from targets
+          content = re.sub(r'\t\t\tpackageProductDependencies = \([^)]*\);', '', content, flags=re.DOTALL)
+
+          with open(pbxproj, 'w') as f:
+              f.write(content)
+
+          # 2. Remove Package.resolved files
+          for root, dirs, files in os.walk('ios'):
+              for f in files:
+                  if f == 'Package.resolved':
+                      os.remove(os.path.join(root, f))
+
+          # 3. Patch Swift files that reference receive_sharing_intent
+          # SceneDelegate: comment out import and usage
+          scene = 'ios/Runner/SceneDelegate.swift'
+          with open(scene, 'r') as f:
+              content = f.read()
+          content = content.replace('import receive_sharing_intent', '// import receive_sharing_intent')
+          content = content.replace('ReceiveSharingIntentPlugin.instance.scene(', '// ReceiveSharingIntentPlugin.instance.scene(')
+          content = content.replace('ReceiveSharingIntentPlugin.instance.scene(scene, openURLContexts:', '// ReceiveSharingIntentPlugin.instance.scene(scene, openURLContexts:')
+          with open(scene, 'w') as f:
+              f.write(content)
+          print(f'Patched {scene}')
+
+          # ShareExtension: replace entire file with stub (no SPM dependency)
+          share_ext = 'ios/ShareExtension/ShareViewController.swift'
+          with open(share_ext, 'w') as f:
+              f.write('''import UIKit
+
+class ShareViewController: UIViewController {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        let alert = UIAlertController(title: "Fluxer", message: "Share not available in this build.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+            self.extensionContext!.completeRequest(returningItems: [], completionHandler: nil)
+        })
+        present(alert, animated: true)
+    }
+}
+''')
+          print(f'Replaced {share_ext}')
+
+          # Remove ShareExtension from pbxproj build phases if it causes issues
+          print('Done: SPM stripped, Swift patched')
+
+          print('Done: SPM stripped, Swift imports patched')
+          PYEOF
+
+      - name: Build with xcodebuild
+        run: |
+          cd ios
+          xcodebuild -workspace Runner.xcworkspace \
+            -scheme canary \
+            -configuration Release-canary \
+            -sdk iphoneos \
+            -derivedDataPath ../build/ios \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="-" \
+            ENABLE_BITCODE=NO \
+            IPHONEOS_DEPLOYMENT_TARGET=15.6 \
+            build
 
       - name: Create IPA
         run: |
           mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
+          cp -r build/ios/Build/Products/Release-canary-iphoneos/Runner.app Payload/
           zip -r -X Fluxer.ipa Payload/
           rm -rf Payload
 
