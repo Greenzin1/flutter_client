@@ -49,82 +49,8 @@ jobs:
           cd ios
           pod install --repo-update
 
-      - name: Patch SPM and Swift imports
-        run: |
-          python3 << 'PYEOF'
-          import re, os
-
-          # 1. Strip ALL SPM from pbxproj
-          pbxproj = 'ios/Runner.xcodeproj/project.pbxproj'
-          with open(pbxproj, 'r') as f:
-              content = f.read()
-
-          # Remove XCLocalSwiftPackageReference section
-          content = re.sub(
-              r'/\* Begin XCLocalSwiftPackageReference section \*/.*?/\* End XCLocalSwiftPackageReference section \*/',
-              '/* removed */', content, flags=re.DOTALL
-          )
-          # Remove XCSwiftPackageProductDependency section
-          content = re.sub(
-              r'/\* Begin XCSwiftPackageProductDependency section \*/.*?/\* End XCSwiftPackageProductDependency section \*/',
-              '/* removed */', content, flags=re.DOTALL
-          )
-          # Remove packageReferences
-          content = re.sub(r'\t\t\tpackageReferences = \([^)]*\);\n', '', content, flags=re.DOTALL)
-          # Remove all productRef lines that reference SPM packages
-          content = re.sub(r'\t+\w+ /\* \w+ \*/ = \{[^}]*isa = XCSwiftPackageProductDependency[^}]*\};', '', content, flags=re.DOTALL)
-          # Remove FlutterGeneratedPluginSwiftPackage build file ref
-          content = re.sub(r'\t+\w+ /\* FlutterGeneratedPluginSwiftPackage in Frameworks \*/,\n', '', content)
-          # Remove any remaining SPM package refs in buildPhases
-          content = re.sub(r'\t+\w+ /\* ReceiveSharingIntent[^*]*\*/,\n', '', content)
-          content = re.sub(r'\t+\w+ /\* receive_sharing_intent[^*]*\*/,\n', '', content)
-          # Remove packageProductDependencies from targets
-          content = re.sub(r'\t\t\tpackageProductDependencies = \([^)]*\);', '', content, flags=re.DOTALL)
-
-          with open(pbxproj, 'w') as f:
-              f.write(content)
-
-          # 2. Remove Package.resolved files
-          for root, dirs, files in os.walk('ios'):
-              for f in files:
-                  if f == 'Package.resolved':
-                      os.remove(os.path.join(root, f))
-
-          # 3. Patch Swift files that reference receive_sharing_intent
-          # SceneDelegate: comment out import and usage
-          scene = 'ios/Runner/SceneDelegate.swift'
-          with open(scene, 'r') as f:
-              content = f.read()
-          content = content.replace('import receive_sharing_intent', '// import receive_sharing_intent')
-          content = content.replace('ReceiveSharingIntentPlugin.instance.scene(', '// ReceiveSharingIntentPlugin.instance.scene(')
-          content = content.replace('ReceiveSharingIntentPlugin.instance.scene(scene, openURLContexts:', '// ReceiveSharingIntentPlugin.instance.scene(scene, openURLContexts:')
-          with open(scene, 'w') as f:
-              f.write(content)
-          print(f'Patched {scene}')
-
-          # ShareExtension: replace entire file with stub (no SPM dependency)
-          share_ext = 'ios/ShareExtension/ShareViewController.swift'
-          with open(share_ext, 'w') as f:
-              f.write('''import UIKit
-
-class ShareViewController: UIViewController {
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        let alert = UIAlertController(title: "Fluxer", message: "Share not available in this build.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
-            self.extensionContext!.completeRequest(returningItems: [], completionHandler: nil)
-        })
-        present(alert, animated: true)
-    }
-}
-''')
-          print(f'Replaced {share_ext}')
-
-          # Remove ShareExtension from pbxproj build phases if it causes issues
-          print('Done: SPM stripped, Swift patched')
-
-          print('Done: SPM stripped, Swift imports patched')
-          PYEOF
+      - name: Patch SPM and Swift files
+        run: python3 patch_spm.py
 
       - name: Build with xcodebuild
         run: |
@@ -154,4 +80,3 @@ class ShareViewController: UIViewController {
           name: Fluxer-iOS-unsigned
           path: Fluxer.ipa
           retention-days: 5
-
