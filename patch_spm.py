@@ -78,3 +78,22 @@ if os.path.exists(app_delegate):
     with open(app_delegate, 'w') as f:
         f.write(content)
     print(f'Patched {app_delegate}')
+
+# 7. Rewrite AppDelegate to remove ALL SPM dependencies
+minimal_appdelegate = """import Flutter
+import UIKit
+
+@main
+@objc class AppDelegate: FlutterAppDelegate {
+  override func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+  ) -> Bool {
+    GeneratedPluginRegistrant.register(with: self)
+    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+}
+"""
+with open(app_delegate, 'w') as f:
+    f.write(minimal_appdelegate)
+print(f'Rewrote {app_delegate} with minimal stub')
