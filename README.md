@@ -1,23 +1,26 @@
+# Fluxer iOS (Unsigned IPA)
+
+This is a fork of the official [Fluxer Flutter client](https://github.com/fluxerapp/flutter_client) that builds **unsigned IPA files** via GitHub Actions for sideloading on iOS using [Feather](https://github.com/nicholaostr/feather) or similar tools.
+
+## Why does this fork exist?
+
+The official Fluxer iOS app is only distributed through **TestFlight**, which is limited to **Plutonium subscribers** (Fluxer's premium tier). If you don't have Plutonium, there's no way to install the native iOS app.
+
+This fork uses GitHub Actions to build the same open source Flutter client as an **unsigned IPA** that you can sideload onto your iPhone using Feather or any other signing tool. No jailbreak required.
+
+## How to install
+
+1. Download the latest IPA from [Actions](https://github.com/Greenzin1/flutter_client/actions/workflows/build-ios-unsigned.yml) or Artifacts
+2. Open **Feather** on your iPhone
+3. Import and sign the IPA with your Apple ID
+4. Done
+
+## Original README below
+
+---
+
 > [!CAUTION]
-> The Fluxer Flutter mobile client is still in beta so features will be missing or broken. Currently the only way to report issues is on the Fluxer Mobile community (Plutonium members only), this will change in the future.
->
-> Note there is currently no set release date for the app.
-
-<p align="center">
-  <img src="./docs/media/logo-graphic.png" alt="Fluxer graphic logo" width="400">
-</p>
-
-<p align="center">
-  <a href="https://fluxer.app/donate">
-    <img src="https://img.shields.io/badge/Donate-fluxer.app%2Fdonate-brightgreen" alt="Donate" /></a>
-  <a href="https://docs.fluxer.app">
-    <img src="https://img.shields.io/badge/Docs-docs.fluxer.app-blue" alt="Documentation" /></a>
-  <a href="./LICENSE">
-    <img src="https://img.shields.io/badge/License-AGPLv3-purple" alt="AGPLv3 License" /></a>
-  <a href="https://github.com/fluxerapp/flutter_client/actions/workflows/dart-analyze.yml">
-    <img src="https://github.com/fluxerapp/flutter_client/actions/workflows/dart-analyze.yml/badge.svg" alt="Dart analyze" /></a>
-  <a href="https://weblate.fluxer.tools/engage/flutter-client/"><img src="https://weblate.fluxer.tools/widget/flutter-client/svg-badge.svg" alt="Translation status"></a>
-</p>
+> The Fluxer Flutter mobile client is still in beta so features will be missing or broken.
 
 # Fluxer Flutter Client
 
